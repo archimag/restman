@@ -2,9 +2,9 @@
 
 (in-package #:restman.spy)
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; reply
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defclass spy-reply (restas:reply-proxy)
   ((saved-data :initform nil :accessor reply-saved-data)))
@@ -16,47 +16,98 @@
   #|--------------------------------------------------------------------------|#
   (call-next-method))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; spy
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defclass spy ()
-  ((request-list :initform nil :accessor spy-request-list)
+  ((genid-style :initform :uuid4 :initarg :genid-style  :reader spy-genid-style)
+   (requests :initform nil :accessor spy-requests-list)
    (active-p :initform nil :accessor spy-active-p)))
 
 (defgeneric start-spy (spy)
   #|--------------------------------------------------------------------------|#
   (:method ((spy spy))
     (unless (spy-active-p spy)
-      (setf (spy-request-list spy) nil
+      (setf (spy-requests-list spy) nil
             (spy-active-p spy) t))))
 
 (defgeneric finish-spy (spy)
   #|--------------------------------------------------------------------------|#
   (:method ((spy spy))
     (when (spy-active-p spy)
-      (setf (spy-request-list spy)
-            (nreverse (spy-request-list spy)))
+      (setf (spy-requests-list spy)
+            (nreverse (spy-requests-list spy)))
       (setf (spy-active-p spy) nil))))
+
+(defgeneric generate-request-id (spy)
+  #|--------------------------------------------------------------------------|#
+  (:method ((spy spy))
+    (case (spy-genid-style spy)
+      (:uuid1
+       (format nil "~A" (uuid:make-v1-uuid)))
+      (:uuid4
+       (format nil "~A" (uuid:make-v4-uuid)))
+      (:order
+       (format nil "~6,'0d" (* (length (spy-requests-list spy)) 100))))))
+
 
 (defgeneric register-record (spy request reply content)
   #|--------------------------------------------------------------------------|#
-  (:method ((spy spy) request reply content)
+  (:method :around (spy request reply content)
     (when (spy-active-p spy)
-      (let ((req (request-hash-table request))
-            (res (or (reply-saved-data reply)
-                     (reply-hash-table reply content))))
-        #|--------------------------------------------------------------------|#
-        (setf (gethash "reply" req)
-              res)
-        #|--------------------------------------------------------------------|#
-        (push req (spy-request-list spy))))))
-
-(defgeneric export-spy-journal (spy pathname)
+      (call-next-method)))
   #|--------------------------------------------------------------------------|#
-  (:method ((spy spy) pathname)
+  (:method ((spy spy) request (reply spy-reply)  content)
+    (register-record spy
+                     request
+                     (or (reply-saved-data reply)
+                         (reply-hash-table reply content))
+                     content))
+  #|--------------------------------------------------------------------------|#
+  (:method ((spy spy) request (reply hash-table) content)
+    (register-record spy
+                     (request-hash-table request)
+                     reply
+                     content))
+  #|--------------------------------------------------------------------------|#
+  (:method ((spy spy) (request hash-table) (reply hash-table) content)
+    (setf (gethash "id" request)
+          (generate-request-id spy))
+    #|------------------------------------------------------------------------|#
+    (setf (gethash "reply" request)
+          reply)
+    #|------------------------------------------------------------------------|#
+    (push request (spy-requests-list spy))))
+
+(defgeneric export-spy-journal (spy pathname &key replies-pathname)
+  #|--------------------------------------------------------------------------|#
+  (:method ((spy spy) pathname &key replies-pathname)
     (let ((obj (make-hash-table :test 'equal))
-          (requests (spy-request-list spy)))
+          (requests (spy-requests-list spy)))
+      #|----------------------------------------------------------------------|#
+      (when replies-pathname
+        (let ((replies (make-hash-table :test 'equal)))
+          #|------------------------------------------------------------------|#
+          (setf requests
+                (iter (for req in requests)
+                      (let ((request (copy-hash-table req))
+                            (reply-request (make-hash-table :test 'equal)))
+                        #|----------------------------------------------------|#
+                        (setf (gethash "id" reply-request)
+                              (gethash "id" request))
+                        #|----------------------------------------------------|#
+                        (setf (gethash "reply" reply-request)
+                              (gethash "reply" request))
+                        #|----------------------------------------------------|#
+                        (push reply-request
+                              (gethash "requests" replies))
+                        #|----------------------------------------------------|#
+                        (remhash "reply" request)
+                        #|----------------------------------------------------|#
+                        (collect request))))
+          #|------------------------------------------------------------------|#
+          (encode-to-file replies replies-pathname)))
       #|----------------------------------------------------------------------|#
       (setf (gethash "requests" obj)
             requests)
@@ -65,9 +116,9 @@
       #|----------------------------------------------------------------------|#
       (values))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; decorator
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defclass spy-route (restas:proxy-route)
   ((spy :initarg :spy)))

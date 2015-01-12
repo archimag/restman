@@ -140,6 +140,7 @@
 (defgeneric print-run-results (simulator &optional stream)
   #|--------------------------------------------------------------------------|#
   (:method ((simulator simulator) &optional (stream *standard-output*))
+    #|------------------------------------------------------------------------|#
     (let ((cl-ansi-text:*enabled* (interactive-stream-p stream)))
       (cl-ansi-text:with-color (:black :stream stream :style :background)
         (cl-ansi-text:with-color (:white :stream stream)
@@ -166,15 +167,39 @@
                  (format stream
                          "PASS: ~A ~A~&"
                          (getf item :method)
-                         (getf item :url)))))))))
+                         (getf item :url)))))))
+    #|------------------------------------------------------------------------|#
+    (let ((cl-ansi-text:*enabled* (interactive-stream-p stream)))
+      (cl-ansi-text:with-color (:cyan :stream stream)
+          (format stream
+                  "Summary: ~A passed, ~A differ(s)~&"
+                  (count :success (simulator-run-results simulator) :key (rcurry #'getf :status))
+                  (count :error (simulator-run-results simulator) :key (rcurry #'getf :status)))))))
 
-(defgeneric run (simulator obj &optional stream)
+
+(defgeneric find-correct-reply (simulator request-id)
   #|--------------------------------------------------------------------------|#
-  (:method ((simulator simulator) (module symbol) &optional (stream *standard-output*))
-    (run simulator (make-route-map module) stream))
+  (:method ((simulator simulator) request-id)
+    (gethash "reply"
+             (find request-id
+                   (simulator-requests simulator)
+                   :key (curry #'gethash "id")
+                   :test #'string=))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; run
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defgeneric run (simulator obj &key stream environment)
   #|--------------------------------------------------------------------------|#
-  (:method ((simulator simulator) (route-map routes:mapper) &optional (stream *standard-output*))
-    (let ((requests (simulator-requests simulator)))
+  (:method ((simulator simulator) (module symbol) &rest args &key &allow-other-keys)
+    (apply #'run simulator (make-route-map module) args))
+  #|--------------------------------------------------------------------------|#
+  (:method ((simulator simulator) (route-map routes:mapper) &key (stream *standard-output*) environment)
+    ;; (let ((requests (mapcar (rcurry 'apply-environment environment)
+    ;;                         (simulator-requests simulator))))
+    (let ((requests (iter (for r in (simulator-requests simulator))
+                          (collect (apply-environment r environment)))))
       #|----------------------------------------------------------------------|#
       (labels ((resolve ()
                  (setf (simulator-run-results simulator)
@@ -190,19 +215,31 @@
                    (chain (process-request route-map (hash-table-request request))
                      (:attach (reply)
                        #|----------------------------------------------------|#
-                          (push (compare-replies simulator 
-                                                 request
-                                                 (gethash "reply" request)
-                                                 (reply-hash-table reply (reply-content reply)))
-                                (simulator-run-results simulator))
-                          #|--------------------------------------------------|#
-                          (setf (gethash "reply" request)
-                                (reply-hash-table reply))
-                          #|--------------------------------------------------|#
-                          (if requests
-                              (impl)
-                              (resolve)))
+                       (push (compare-replies simulator 
+                                              request
+                                              (apply-environment
+                                               (find-correct-reply simulator
+                                                                   (gethash "id" request))
+                                               environment)
+                                              (reply-hash-table reply (reply-content reply)))
+                             (simulator-run-results simulator))
+                       #|-----------------------------------------------------|#
+                       (setf (gethash "reply" request)
+                             (reply-hash-table reply))
+                       #|-----------------------------------------------------|#
+                       (if requests
+                           (impl)
+                           (resolve)))
                      (:catcher (e)
                        (reject e))))))
         (impl)
         (values)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; fixate
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; compare
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

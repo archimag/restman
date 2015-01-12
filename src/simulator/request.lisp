@@ -21,8 +21,7 @@
    (remote-port :initform nil :initarg :remote-port :reader restas:request-remote-port)
    (raw-post-data :initform nil :initarg :raw-post-data :reader restas:request-raw-post-data)))
 
-(defmethod shared-initialize :after ((request simulator-request) slot-names &rest initargs &key &allow-other-keys)
-  (declare (ignore initargs))
+(defmethod shared-initialize :after ((request simulator-request) slot-names &key &allow-other-keys)
   #|--------------------------------------------------------------------------|#
   (setf (slot-value request 'listener)
         (let* ((uri (restas:request-request-uri request))

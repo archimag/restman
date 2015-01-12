@@ -4,6 +4,7 @@
     :depends-on (#:restas.core
                  #:blackbird #:local-time
                  #:yason #:diff #:cl-libxml2
+                 #:uuid
                  #:cl-ansi-text)
     :serial t
     :pathname "src"
@@ -13,6 +14,7 @@
                           :components ((:file "request")
                                        (:file "reply")
                                        (:file "dispatch")
+                                       (:file "environment")
                                        (:file "simulator")))
                  (:module "spy"
                           :components ((:file "spy")))))

@@ -21,6 +21,7 @@
 (defpackage #:restman.simulator
   (:use #:cl #:alexandria #:iter #:blackbird #:split-sequence #:restman.utility)
   (:shadowing-import-from #:iter #:finally)
-  (:export #:simulator
+  (:export #:read-environment
+           #:simulator
            #:run))
 
