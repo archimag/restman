@@ -5,9 +5,14 @@
 (defclass simulator ()
   ((name :initform :name :initarg :name :reader simulator-name)
    (requests :initform :nil :initarg :requests :reader simulator-requests)
+   (last-replies :reader simulator-last-replies)
    (run-results :initform nil :accessor simulator-run-results)))
 
 (defmethod shared-initialize :after ((simulator simulator) slot-names &key pathname &allow-other-keys)
+  #|--------------------------------------------------------------------------|#
+  (setf (slot-value simulator 'last-replies)
+        (make-hash-table :test 'equal))
+  #|--------------------------------------------------------------------------|#
   (when pathname
     #|------------------------------------------------------------------------|#
     (setf (slot-value simulator 'name)
@@ -130,7 +135,11 @@
   (:method ((simulator simulator) request reply1 reply2)
     (list* :url (gethash "url" request)
            :method (gethash "method" request)
-           (or (compare-http-code simulator reply1 reply2)
+           (or (if (not reply1)
+                   (compare-failed simulator
+                                   :corrent-undefined
+                                   "Correct REPLY is undefined"))
+               (compare-http-code simulator reply1 reply2)
                (compare-content-type simulator reply1 reply2)
                (compare-content-mode simulator reply1 reply2)
                (compare-text-content simulator reply1 reply2)
@@ -176,7 +185,6 @@
                   (count :success (simulator-run-results simulator) :key (rcurry #'getf :status))
                   (count :error (simulator-run-results simulator) :key (rcurry #'getf :status)))))))
 
-
 (defgeneric find-correct-reply (simulator request-id)
   #|--------------------------------------------------------------------------|#
   (:method ((simulator simulator) request-id)
@@ -186,20 +194,20 @@
                    :key (curry #'gethash "id")
                    :test #'string=))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; run
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
 (defgeneric run (simulator obj &key stream environment)
   #|--------------------------------------------------------------------------|#
   (:method ((simulator simulator) (module symbol) &rest args &key &allow-other-keys)
     (apply #'run simulator (make-route-map module) args))
   #|--------------------------------------------------------------------------|#
   (:method ((simulator simulator) (route-map routes:mapper) &key (stream *standard-output*) environment)
-    ;; (let ((requests (mapcar (rcurry 'apply-environment environment)
-    ;;                         (simulator-requests simulator))))
-    (let ((requests (iter (for r in (simulator-requests simulator))
-                          (collect (apply-environment r environment)))))
+    (let ((requests (mapcar (rcurry 'apply-environment environment)
+                            (simulator-requests simulator)))
+          (last-replies (simulator-last-replies simulator)))
+      #|----------------------------------------------------------------------|#
+      (setf (simulator-run-results simulator)
+            nil)
+      #|----------------------------------------------------------------------|#
+      (clrhash (simulator-last-replies simulator))
       #|----------------------------------------------------------------------|#
       (labels ((resolve ()
                  (setf (simulator-run-results simulator)
@@ -207,25 +215,23 @@
                  (print-run-results simulator stream))
                #|-------------------------------------------------------------|#
                (reject (e)
-                 (print e)
-                 (break "~A" e))
+                 (print e))
                #|-------------------------------------------------------------|#
                (impl ()
-                 (let ((request (pop requests)))
+                 (let* ((request (pop requests))
+                        (request-id (gethash "id" request)))
                    (chain (process-request route-map (hash-table-request request))
                      (:attach (reply)
-                       #|----------------------------------------------------|#
-                       (push (compare-replies simulator 
-                                              request
-                                              (apply-environment
-                                               (find-correct-reply simulator
-                                                                   (gethash "id" request))
-                                               environment)
-                                              (reply-hash-table reply (reply-content reply)))
-                             (simulator-run-results simulator))
                        #|-----------------------------------------------------|#
-                       (setf (gethash "reply" request)
-                             (reply-hash-table reply))
+                       (setf (gethash request-id last-replies)
+                             (reply-hash-table reply (reply-content reply)))
+                       #|-----------------------------------------------------|#
+                       (push (compare-replies simulator
+                                              request
+                                              (apply-environment (find-correct-reply simulator request-id)
+                                                                 environment)
+                                              (gethash request-id last-replies))
+                             (simulator-run-results simulator))
                        #|-----------------------------------------------------|#
                        (if requests
                            (impl)
@@ -235,11 +241,18 @@
         (impl)
         (values)))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; fixate
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; compare
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defgeneric fixate (simulator pathname)
+  #|--------------------------------------------------------------------------|#
+  (:method ((simulator simulator) (pathname pathname))
+    #|------------------------------------------------------------------------|#
+    (let ((last-replies (simulator-last-replies simulator)))
+      (iter (for request in (simulator-requests simulator))
+            (setf (gethash "reply" request)
+                  (gethash (gethash "id" request) last-replies))))
+    #|------------------------------------------------------------------------|#
+    (let ((obj (make-hash-table :test 'equal)))
+      (setf (gethash "requests" obj)
+            (simulator-requests simulator))
+      (encode-to-file obj pathname))
+    #|------------------------------------------------------------------------|#
+    (values)))

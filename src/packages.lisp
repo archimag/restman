@@ -7,7 +7,7 @@
            #:request-hash-table
            #:reply-hash-table
            #:encode-to-file))
-           
+
 (defpackage #:restman.spy
   (:use #:cl #:alexandria #:iter #:blackbird #:restman.utility)
   (:shadowing-import-from #:iter #:finally)
@@ -23,5 +23,6 @@
   (:shadowing-import-from #:iter #:finally)
   (:export #:read-environment
            #:simulator
-           #:run))
+           #:print-run-results
+           #:run #:fixate))
 

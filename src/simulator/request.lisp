@@ -23,6 +23,12 @@
 
 (defmethod shared-initialize :after ((request simulator-request) slot-names &key &allow-other-keys)
   #|--------------------------------------------------------------------------|#
+  (iter (for name-value in (split-sequence #\& (puri:uri-query (restas:request-request-uri request))))
+        (destructuring-bind (name &optional value) (split-sequence #\= name-value)
+          (push (cons (restas:url-decode name)
+                      (restas:url-decode value))
+                (slot-value request 'get-parameters))))
+  #|--------------------------------------------------------------------------|#
   (setf (slot-value request 'listener)
         (let* ((uri (restas:request-request-uri request))
                (ssl-p (eql (puri:uri-scheme uri) :https)))
