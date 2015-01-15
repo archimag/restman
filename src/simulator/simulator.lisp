@@ -19,7 +19,18 @@
           (namestring pathname))
     #|------------------------------------------------------------------------|#
     (setf (slot-value simulator 'requests)
-          (gethash "requests" (yason:parse pathname)))))
+          (if (fad:file-exists-p pathname)
+              (gethash "requests" (yason:parse pathname))
+              pathname))))
+
+(defmethod simulator-requests :around ((simulator simulator))
+  #|--------------------------------------------------------------------------|#
+  (when (pathnamep (slot-value simulator 'requests))
+    (setf (slot-value simulator 'requests)
+          (gethash "requests"
+                   (yason:parse (slot-value simulator 'requests)))))
+  #|--------------------------------------------------------------------------|#
+  (call-next-method))
 
 (defgeneric reformat-json-string (simulator json)
   #|--------------------------------------------------------------------------|#

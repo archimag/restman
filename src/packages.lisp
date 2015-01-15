@@ -12,9 +12,11 @@
   (:use #:cl #:alexandria #:iter #:blackbird #:restman.utility)
   (:shadowing-import-from #:iter #:finally)
   (:export #:spy
-           #:spy-request-list
+           #:spy-requests-list
+           #:spy-active-p
            #:start-spy
            #:finish-spy
+           #:generate-request-id
            #:export-spy-journal
            #:@spy))
 
@@ -23,6 +25,11 @@
   (:shadowing-import-from #:iter #:finally)
   (:export #:read-environment
            #:simulator
+           
+           #:simulator-requests
+           #:find-correct-reply
+           #:simulator-last-replies
+           
            #:print-run-results
            #:run #:fixate))
 
