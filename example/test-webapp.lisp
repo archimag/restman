@@ -34,16 +34,15 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defclass fionbio-simulator (restman.simulator:simulator)
-  ((replies-pathname :initform nil :initarg :replies-pathname)))
+  ((replies-source :initform nil :initarg :replies-source)))
 
 (defmethod shared-initialize :after ((simulator fionbio-simulator) slot-names &key &allow-other-keys)
-  (unless (slot-value simulator 'replies-pathname)
-    (error "replies-pathname is required")))
-
+  (unless (slot-value simulator 'replies-source)
+    (error "replies-source is required")))
 
 (defmethod restman.simulator:find-correct-reply ((simulator fionbio-simulator) request-id)
   (let ((path (reply-pathname request-id
-                              (slot-value simulator 'replies-pathname))))
+                              (slot-value simulator 'replies-source))))
     (if (fad:file-exists-p path)
         (yason:parse path))))
 
@@ -59,8 +58,8 @@
 
 (defparameter *simulator*
   (make-instance 'fionbio-simulator
-                 :pathname *requests-pathname*
-                 :replies-pathname *replies-pathname*))
+                 :requests-source *requests-pathname*
+                 :replies-source *replies-pathname*))
 
 (defun run (&optional env)
   (restman.simulator:run *simulator*

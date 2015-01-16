@@ -25,7 +25,7 @@
           (format nil
                   "http://~A~A"
                   (restas:request-host request)
-                  (puri:render-uri (restas:request-uri request) nil)))
+                  (restas:request-uri request)))
     #|------------------------------------------------------------------------|#
     (setf (gethash "method" obj)
           (symbol-name (restas:request-method request)))

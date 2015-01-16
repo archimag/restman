@@ -3,25 +3,15 @@
 (in-package #:restman.simulator)
 
 (defclass simulator ()
-  ((name :initform :name :initarg :name :reader simulator-name)
-   (requests :initform :nil :initarg :requests :reader simulator-requests)
+  ((requests-source :initform nil :initarg :requests-source :reader simulator-requests-source)
+   (requests :initform nil :initarg :requests :reader simulator-requests)
    (last-replies :reader simulator-last-replies)
    (run-results :initform nil :accessor simulator-run-results)))
 
-(defmethod shared-initialize :after ((simulator simulator) slot-names &key pathname &allow-other-keys)
+(defmethod shared-initialize :after ((simulator simulator) slot-names &key &allow-other-keys)
   #|--------------------------------------------------------------------------|#
   (setf (slot-value simulator 'last-replies)
-        (make-hash-table :test 'equal))
-  #|--------------------------------------------------------------------------|#
-  (when pathname
-    #|------------------------------------------------------------------------|#
-    (setf (slot-value simulator 'name)
-          (namestring pathname))
-    #|------------------------------------------------------------------------|#
-    (setf (slot-value simulator 'requests)
-          (if (fad:file-exists-p pathname)
-              (gethash "requests" (yason:parse pathname))
-              pathname))))
+        (make-hash-table :test 'equal)))
 
 (defmethod simulator-requests :around ((simulator simulator))
   #|--------------------------------------------------------------------------|#
@@ -31,6 +21,18 @@
                    (yason:parse (slot-value simulator 'requests)))))
   #|--------------------------------------------------------------------------|#
   (call-next-method))
+
+(defgeneric load-requests (simulator source)
+  #|--------------------------------------------------------------------------|#
+  (:method ((simulator simulator) (source pathname))
+    (setf (slot-value simulator 'requests)
+          (gethash "requests" (yason:parse source)))))
+    
+
+(defgeneric simulator-name (simulator)
+  #|--------------------------------------------------------------------------|#
+  (:method ((simulator simulator))
+    (namestring (simulator-requests-source simulator))))
 
 (defgeneric reformat-json-string (simulator json)
   #|--------------------------------------------------------------------------|#
@@ -210,15 +212,21 @@
   (:method ((simulator simulator) (module symbol) &rest args &key &allow-other-keys)
     (apply #'run simulator (make-route-map module) args))
   #|--------------------------------------------------------------------------|#
+  (:method :around ((simulator simulator) (route-map routes:mapper) &key &allow-other-keys)
+    #|------------------------------------------------------------------------|#
+    (load-requests simulator (simulator-requests-source simulator))
+    #|------------------------------------------------------------------------|#
+    (setf (simulator-run-results simulator)
+          nil)
+    #|------------------------------------------------------------------------|#
+    (clrhash (simulator-last-replies simulator))
+    #|------------------------------------------------------------------------|#
+    (call-next-method))
+  #|--------------------------------------------------------------------------|#
   (:method ((simulator simulator) (route-map routes:mapper) &key (stream *standard-output*) environment)
     (let ((requests (mapcar (rcurry 'apply-environment environment)
                             (simulator-requests simulator)))
           (last-replies (simulator-last-replies simulator)))
-      #|----------------------------------------------------------------------|#
-      (setf (simulator-run-results simulator)
-            nil)
-      #|----------------------------------------------------------------------|#
-      (clrhash (simulator-last-replies simulator))
       #|----------------------------------------------------------------------|#
       (labels ((resolve ()
                  (setf (simulator-run-results simulator)
