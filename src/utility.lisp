@@ -81,3 +81,10 @@
 (defun encode-to-file (obj path)
   (with-output-to-file (out path :if-exists :supersede :if-does-not-exist :create)
     (yason:encode obj (yason:make-json-output-stream out :indent t))))
+
+
+(defun string-to-symbol (str)
+  (destructuring-bind (package name) (split-sequence #\: str)
+    (ensure-symbol (string-upcase name)
+                   (string-upcase package))))
+    

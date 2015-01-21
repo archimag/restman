@@ -19,7 +19,13 @@
    (headers :initform nil :initarg :headers-in :reader restas:request-headers-in)
    (remote-addr :initform nil :initarg :remote-addr :reader restas:request-remote-address)
    (remote-port :initform nil :initarg :remote-port :reader restas:request-remote-port)
-   (raw-post-data :initform nil :initarg :raw-post-data :reader restas:request-raw-post-data)))
+   (raw-post-data :initform nil :initarg :raw-post-data :reader restas:request-raw-post-data)
+   #|-------------------------------------------------------------------------|#
+   (state :initform nil :initarg :state :reader request-state)))
+
+(defparameter *scanner-cookie-split*
+  (cl-ppcre:create-scanner ";[ \\s\\t]+")
+  "Scanner for splitting up cookies.")
 
 (defmethod shared-initialize :after ((request simulator-request) slot-names &key &allow-other-keys)
   #|--------------------------------------------------------------------------|#
@@ -42,7 +48,18 @@
         (iter (for (key . value) in (slot-value request 'headers))
               (collect
                   (cons (make-keyword (string-upcase key))
-                        value)))))
+                        value))))
+  #|--------------------------------------------------------------------------|#
+  (let ((cookies (restas:header-in :cookie request)))
+    (when cookies
+      (setf (slot-value request 'cookies-in)
+            (iter (for cookie in (ppcre:split *scanner-cookie-split* cookies))
+                  (destructuring-bind (name value) (split-sequence #\= cookie)
+                    (collect
+                        (cons name value))))))))
+
+(defmethod request-state (request)
+  nil)
 
 (defmethod restas:request-query-string ((request simulator-request))
   (puri:uri-query (restas:request-request-uri request)))
@@ -60,5 +77,6 @@
                      :method (find-symbol ($ "method") '#:keyword)
                      :server-protocol ($ "serverProtocol")
                      :headers-in (hash-table-alist ($ "headers"))
-                     :post-parameters (if ($ "data") (hash-table-alist ($ "data")))))))
+                     :post-parameters (if ($ "data") (hash-table-alist ($ "data")))
+                     :state (if ($ "state") (hash-table-alist ($ "state")))))))
 

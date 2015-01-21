@@ -4,8 +4,7 @@
     :depends-on (#:restas.core
                  #:blackbird #:local-time
                  #:yason #:diff #:cl-libxml2
-                 #:uuid
-                 #:cl-ansi-text)
+                 #:cl-ppcre #:uuid #:cl-ansi-text)
     :serial t
     :pathname "src"
     :components ((:file "packages")

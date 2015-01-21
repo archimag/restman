@@ -6,7 +6,8 @@
   (:export #:try-unpromisify
            #:request-hash-table
            #:reply-hash-table
-           #:encode-to-file))
+           #:encode-to-file
+           #:string-to-symbol))
 
 (defpackage #:restman.spy
   (:use #:cl #:alexandria #:iter #:blackbird #:restman.utility)
@@ -29,6 +30,8 @@
            #:simulator-requests
            #:find-correct-reply
            #:simulator-last-replies
+
+           #:request-state
            
            #:print-run-results
            #:run #:fixate))
