@@ -49,6 +49,11 @@
     #|------------------------------------------------------------------------|#
     obj))
 
+(defun calc-checksum (bytes)
+  (ironclad:byte-array-to-hex-string
+   (ironclad:digest-sequence  (ironclad:make-digest :sha1)
+                              bytes)))
+
 (defun reply-hash-table (reply &optional content)
   (let ((r (make-hash-table :test 'equal))
         (headers (make-hash-table :test 'equal)))
@@ -71,7 +76,7 @@
             (pathname
              (values "pathname" content))
             (otherwise
-             (values "binary" (base64:usb8-array-to-base64-string content))))
+             (values "binary" (calc-checksum content))))
         #|--------------------------------------------------------------------|#
         (setf (gethash "contentMode" r) mode
               (gethash "content" r) data)))
@@ -91,3 +96,5 @@
 (defun parse-native-namestring (thing)
   #+sbcl (sb-ext:parse-native-namestring thing)
   #-sbcl (parse-namestring thing))
+
+
