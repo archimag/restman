@@ -15,7 +15,7 @@
 (defun sort-alist (alist)
   (sort (copy-alist alist)
         #'string<
-        :key (compose #'symbol-name #'car)))
+        :key (compose #'string #'car)))
 
 (defun request-hash-table (request)
   (let ((obj (make-hash-table :test 'equal))
@@ -87,4 +87,7 @@
   (destructuring-bind (package name) (split-sequence #\: str)
     (ensure-symbol (string-upcase name)
                    (string-upcase package))))
-    
+
+(defun parse-native-namestring (thing)
+  #+sbcl (sb-ext:parse-native-namestring thing)
+  #-sbcl (parse-namestring thing))

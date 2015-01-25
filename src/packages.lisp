@@ -7,7 +7,8 @@
            #:request-hash-table
            #:reply-hash-table
            #:encode-to-file
-           #:string-to-symbol))
+           #:string-to-symbol
+           #:parse-native-namestring))
 
 (defpackage #:restman.spy
   (:use #:cl #:alexandria #:iter #:blackbird #:restman.utility)

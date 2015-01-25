@@ -77,6 +77,13 @@
                      :method (find-symbol ($ "method") '#:keyword)
                      :server-protocol ($ "serverProtocol")
                      :headers-in (hash-table-alist ($ "headers"))
-                     :post-parameters (if ($ "data") (hash-table-alist ($ "data")))
+                     :post-parameters (if ($ "data")
+                                          (iter (for (key value) in-hashtable ($ "data"))
+                                                (collect
+                                                    (cons key
+                                                          (if (listp value)
+                                                              (cons (parse-native-namestring (car value))
+                                                                    (cdr value))
+                                                              value)))))
                      :state (if ($ "state") (hash-table-alist ($ "state")))))))
 

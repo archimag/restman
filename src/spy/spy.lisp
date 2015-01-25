@@ -23,7 +23,8 @@
 (defclass spy ()
   ((genid-style :initform :uuid4 :initarg :genid-style  :reader spy-genid-style)
    (requests :initform nil :accessor spy-requests-list)
-   (active-p :initform nil :accessor spy-active-p)))
+   (active-p :initform nil :accessor spy-active-p)
+   (post-file-directory :initform #P"/tmp/" :initarg :file-directory :reader post-file-directory)))
 
 (defgeneric start-spy (spy)
   #|--------------------------------------------------------------------------|#
@@ -52,6 +53,13 @@
        (format nil "~6,'0d" (* (length (spy-requests-list spy)) 100))))))
 
 
+(defgeneric make-post-file-name (spy id)
+  #|==========================================================================|#
+  (:method ((spy spy) id)
+    (make-pathname :name id
+                   :directory (pathname-directory (post-file-directory spy)))))
+
+
 (defgeneric register-record (spy request reply content)
   #|--------------------------------------------------------------------------|#
   (:method :around (spy request reply content)
@@ -72,13 +80,26 @@
                      content))
   #|--------------------------------------------------------------------------|#
   (:method ((spy spy) (request hash-table) (reply hash-table) content)
-    (setf (gethash "id" request)
-          (generate-request-id spy))
-    #|------------------------------------------------------------------------|#
-    (setf (gethash "reply" request)
-          reply)
-    #|------------------------------------------------------------------------|#
-    (push request (spy-requests-list spy))))
+    (let ((id (generate-request-id spy)))
+      #|----------------------------------------------------------------------|#
+      (setf (gethash "id" request)
+            id)
+      #|----------------------------------------------------------------------|#
+      (when (gethash "data" request)
+        (iter (for (key value) in-hashtable (gethash "data" request))
+              (when (listp value)
+                (let ((s-path (make-post-file-name spy id)))
+                  (destructuring-bind (path file-name content-type) value
+                    (fad:copy-file path
+                                   s-path
+                                   :overwrite t)
+                    (setf (gethash key (gethash "data" request))
+                          (list (namestring s-path) file-name content-type)))))))
+      #|----------------------------------------------------------------------|#
+      (setf (gethash "reply" request)
+            reply)
+      #|----------------------------------------------------------------------|#
+      (push request (spy-requests-list spy)))))
 
 (defgeneric export-spy-journal (spy pathname &key replies-pathname)
   #|--------------------------------------------------------------------------|#
@@ -128,10 +149,14 @@
     (try-unpromisify
      (tap (call-next-method)
           (lambda (&rest args)
-            (register-record (slot-value route 'spy)
-                             restas:*request*
-                             restas:*reply*
-                             (car args)))))))
+            (handler-case              
+              (register-record (slot-value route 'spy)
+                                 restas:*request*
+                                 restas:*reply*
+                                 (car args))
+              (t (err)
+                (break "A unforeseen error ~A" err)))
+            )))))
 
 (defun @spy (spy)
   (named-lambda make-spy-route (route)
