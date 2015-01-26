@@ -43,6 +43,10 @@
     (setf (gethash "data" obj)
           (alist-hash-table (sort-alist (restas:post-parameters request)) :test 'equal))
     #|------------------------------------------------------------------------|#
+    (unless (emptyp (restas:request-raw-post-data request))
+      (setf (gethash "rawPostData" obj)
+            (restas:request-raw-post-data request)))
+    #|------------------------------------------------------------------------|#
     (iter (for (name . value) in (sort-alist (restas:headers-in request)))
           (setf (gethash (http-word name) headers)
                 value))
@@ -92,6 +96,10 @@
   (destructuring-bind (package name) (split-sequence #\: str)
     (ensure-symbol (string-upcase name)
                    (string-upcase package))))
+
+(defun native-namestring (pathname)
+  #+sbcl (sb-ext:native-namestring pathname)
+  #-sbcl (namestring pathname))
 
 (defun parse-native-namestring (thing)
   #+sbcl (sb-ext:parse-native-namestring thing)

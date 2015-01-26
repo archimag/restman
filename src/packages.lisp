@@ -8,6 +8,7 @@
            #:reply-hash-table
            #:encode-to-file
            #:string-to-symbol
+           #:native-namestring
            #:parse-native-namestring))
 
 (defpackage #:restman.spy

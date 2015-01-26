@@ -53,10 +53,11 @@
        (format nil "~6,'0d" (* (length (spy-requests-list spy)) 100))))))
 
 
-(defgeneric make-post-file-name (spy id)
+(defgeneric make-post-file-name (spy name type)
   #|==========================================================================|#
-  (:method ((spy spy) id)
-    (make-pathname :name id
+  (:method ((spy spy) name type)
+    (make-pathname :name name
+                   :type type
                    :directory (pathname-directory (post-file-directory spy)))))
 
 
@@ -88,13 +89,22 @@
       (when (gethash "data" request)
         (iter (for (key value) in-hashtable (gethash "data" request))
               (when (listp value)
-                (let ((s-path (make-post-file-name spy id)))
+                (let ((s-path (make-post-file-name spy key id)))
                   (destructuring-bind (path file-name content-type) value
                     (fad:copy-file path
                                    s-path
                                    :overwrite t)
                     (setf (gethash key (gethash "data" request))
-                          (list (namestring s-path) file-name content-type)))))))
+                          (list (native-namestring s-path) file-name content-type)))))))
+      #|----------------------------------------------------------------------|#
+      (when (gethash "rawPostData" request)
+        (let ((raw-post-data-file (make-post-file-name spy "raw-post-data" id)))
+          (write-byte-vector-into-file (gethash "rawPostData" request)
+                                       raw-post-data-file
+                                       :if-exists :supersede
+                                       :if-does-not-exist :create)
+          (setf (gethash "rawPostData" request)
+                (native-namestring raw-post-data-file))))
       #|----------------------------------------------------------------------|#
       (setf (gethash "reply" request)
             reply)

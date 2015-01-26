@@ -19,7 +19,7 @@
    (headers :initform nil :initarg :headers-in :reader restas:request-headers-in)
    (remote-addr :initform nil :initarg :remote-addr :reader restas:request-remote-address)
    (remote-port :initform nil :initarg :remote-port :reader restas:request-remote-port)
-   (raw-post-data :initform nil :initarg :raw-post-data :reader restas:request-raw-post-data)
+   (raw-post-data :initform nil :initarg :raw-post-data)
    #|-------------------------------------------------------------------------|#
    (state :initform nil :initarg :state :reader request-state)))
 
@@ -66,6 +66,11 @@
 
 (defmethod restas:request-script-name ((request simulator-request))
   (puri:uri-path (restas:request-request-uri request)))
+
+(defmethod restas:request-raw-post-data ((request simulator-request))
+  (let ((data (slot-value request 'raw-post-data)))
+    (if data
+        (read-file-into-byte-vector (parse-native-namestring data))))) 
 
 (defun hash-table-request (ht)
   (flet (($ (key)
