@@ -3,36 +3,42 @@
 (in-package #:restman.simulator)
 
 (defclass simulator ()
-  ((requests-source :initform nil :initarg :requests-source :reader simulator-requests-source)
+  ((config :initform nil :initarg :config :reader simulator-config)
    (requests :initform nil :initarg :requests :reader simulator-requests)
+   (children :initform nil :initarg :children :reader simulator-children)
    (last-replies :reader simulator-last-replies)
-   (run-results :initform nil :accessor simulator-run-results)))
+   (last-results :initform nil :accessor simulator-last-results)))
 
 (defmethod shared-initialize :after ((simulator simulator) slot-names &key &allow-other-keys)
   #|--------------------------------------------------------------------------|#
   (setf (slot-value simulator 'last-replies)
         (make-hash-table :test 'equal)))
 
-(defmethod simulator-requests :around ((simulator simulator))
+(defgeneric make-child-simulator (simulator config)
   #|--------------------------------------------------------------------------|#
-  (when (pathnamep (slot-value simulator 'requests))
-    (setf (slot-value simulator 'requests)
-          (gethash "requests"
-                   (yason:parse (slot-value simulator 'requests)))))
-  #|--------------------------------------------------------------------------|#
-  (call-next-method))
+  (:method ((simulator simulator) config)
+    (make-instance (class-of simulator)
+                   :config  config)))
 
-(defgeneric load-requests (simulator source)
+(defgeneric load-config (simulator config)
   #|--------------------------------------------------------------------------|#
-  (:method ((simulator simulator) (source pathname))
-    (setf (slot-value simulator 'requests)
-          (gethash "requests" (yason:parse source)))))
-    
+  (:method ((simulator simulator) (config pathname))
+    (let ((conf (yason:parse config)))
+      #|----------------------------------------------------------------------|#
+      (setf (slot-value simulator 'requests)
+            (gethash "requests" conf))
+      #|----------------------------------------------------------------------|#
+      (setf (slot-value simulator 'children)
+            (iter (for child in (gethash "include" conf))
+                  (collect
+                      (make-child-simulator simulator
+                                            (merge-pathnames (parse-native-namestring child)
+                                                             (simulator-config simulator)))))))))
 
 (defgeneric simulator-name (simulator)
   #|--------------------------------------------------------------------------|#
   (:method ((simulator simulator))
-    (namestring (simulator-requests-source simulator))))
+    (namestring (simulator-config simulator))))
 
 (defgeneric reformat-json-string (simulator json)
   #|--------------------------------------------------------------------------|#
@@ -150,7 +156,7 @@
            :method (gethash "method" request)
            (or (if (not reply1)
                    (compare-failed simulator
-                                   :corrent-undefined
+                                   :correct-undefined
                                    "Correct REPLY is undefined"))
                (compare-http-code simulator reply1 reply2)
                (compare-content-type simulator reply1 reply2)
@@ -159,9 +165,12 @@
                (compare-binary-content simulator reply1 reply2)
                (compare-success simulator)))))
 
-(defgeneric print-run-results (simulator &optional stream)
+(defgeneric format-last-results (simulator &optional stream)
   #|--------------------------------------------------------------------------|#
   (:method ((simulator simulator) &optional (stream *standard-output*))
+    #|------------------------------------------------------------------------|#
+    (iter (for child in (simulator-children simulator))
+          (format-last-results child stream))
     #|------------------------------------------------------------------------|#
     (let ((cl-ansi-text:*enabled* (interactive-stream-p stream)))
       (cl-ansi-text:with-color (:black :stream stream :style :background)
@@ -169,7 +178,7 @@
           (format stream "=== RESULTS FOR ~A ===" (simulator-name simulator)))))
     (format stream "~&")
     #|------------------------------------------------------------------------|#
-    (iter (for item in (simulator-run-results simulator))
+    (iter (for item in (simulator-last-results simulator))
           (cond
             #|----------------------------------------------------------------|#
             ((eql (getf item :status) :error)
@@ -195,8 +204,10 @@
       (cl-ansi-text:with-color (:cyan :stream stream)
           (format stream
                   "Summary: ~A passed, ~A differ(s)~&"
-                  (count :success (simulator-run-results simulator) :key (rcurry #'getf :status))
-                  (count :error (simulator-run-results simulator) :key (rcurry #'getf :status)))))))
+                  (count :success (simulator-last-results simulator) :key (rcurry #'getf :status))
+                  (count :error (simulator-last-results simulator) :key (rcurry #'getf :status)))))
+    #|------------------------------------------------------------------------|#
+    (values)))
 
 (defgeneric find-correct-reply (simulator request-id)
   #|--------------------------------------------------------------------------|#
@@ -207,36 +218,58 @@
                    :key (curry #'gethash "id")
                    :test #'string=))))
 
-(defgeneric run (simulator obj &key stream environment)
+(defgeneric run (simulator obj &key stream environment callback)
   #|--------------------------------------------------------------------------|#
   (:method ((simulator simulator) (module symbol) &rest args &key &allow-other-keys)
     (apply #'run simulator (make-route-map module) args))
   #|--------------------------------------------------------------------------|#
   (:method :around ((simulator simulator) (route-map routes:mapper) &key &allow-other-keys)
     #|------------------------------------------------------------------------|#
-    (load-requests simulator (simulator-requests-source simulator))
+    (load-config simulator (simulator-config simulator))
     #|------------------------------------------------------------------------|#
-    (setf (simulator-run-results simulator)
+    (setf (simulator-last-results simulator)
           nil)
     #|------------------------------------------------------------------------|#
     (clrhash (simulator-last-replies simulator))
     #|------------------------------------------------------------------------|#
     (call-next-method))
   #|--------------------------------------------------------------------------|#
-  (:method ((simulator simulator) (route-map routes:mapper) &key (stream *standard-output*) environment)
+  (:method ((simulator simulator) (route-map routes:mapper) &key (stream *standard-output*) environment callback)
     (let ((requests (mapcar (rcurry 'apply-environment environment)
                             (simulator-requests simulator)))
+          (children (simulator-children simulator))
           (last-replies (simulator-last-replies simulator)))
       #|----------------------------------------------------------------------|#
       (labels ((resolve ()
-                 (setf (simulator-run-results simulator)
-                       (nreverse (simulator-run-results simulator)))
-                 (print-run-results simulator stream))
+                 (setf (simulator-last-results simulator)
+                       (nreverse (simulator-last-results simulator)))
+                 (cond
+                   (callback
+                    (funcall callback))
+                   (t
+                    (format-last-results simulator stream))))
                #|-------------------------------------------------------------|#
                (reject (e)
-                 (print e))
+                 (invoke-debugger e)
+                 ;;(print e)
+                 )
                #|-------------------------------------------------------------|#
-               (impl ()
+               (handle-children ()
+                 (cond
+                   (children
+                    (run (pop children)
+                         route-map
+                         :stream stream
+                         :environment environment
+                         :callback #'handle-children))
+                   (requests
+                    (handle-requests))
+                   (callback
+                    (funcall callback))
+                   (t
+                    (resolve))))
+               #|-------------------------------------------------------------|#
+               (handle-requests ()
                  (let* ((request (pop requests))
                         (request-id (gethash "id" request)))
                    (chain (process-request route-map (hash-table-request request))
@@ -250,19 +283,22 @@
                                               (apply-environment (find-correct-reply simulator request-id)
                                                                  environment)
                                               (gethash request-id last-replies))
-                             (simulator-run-results simulator))
+                             (simulator-last-results simulator))
                        #|-----------------------------------------------------|#
                        (if requests
-                           (impl)
+                           (handle-requests)
                            (resolve)))
                      (:catcher (e)
                        (reject e))))))
-        (impl)
+        (handle-children)
         (values)))))
 
-(defgeneric fixate (simulator pathname)
+(defgeneric fixate (simulator)
   #|--------------------------------------------------------------------------|#
-  (:method ((simulator simulator) (pathname pathname))
+  (:method ((simulator simulator))
+    #|------------------------------------------------------------------------|#
+    (iter (for child in (simulator-children simulator))
+          (fixate child))
     #|------------------------------------------------------------------------|#
     (let ((last-replies (simulator-last-replies simulator)))
       (iter (for request in (simulator-requests simulator))
@@ -272,6 +308,6 @@
     (let ((obj (make-hash-table :test 'equal)))
       (setf (gethash "requests" obj)
             (simulator-requests simulator))
-      (encode-to-file obj pathname))
+      (encode-to-file obj (simulator-config simulator)))
     #|------------------------------------------------------------------------|#
     (values)))

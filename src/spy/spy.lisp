@@ -27,14 +27,14 @@
    (post-file-directory :initform #P"/tmp/" :initarg :file-directory :reader post-file-directory)))
 
 (defgeneric start-spy (spy)
-  #|--------------------------------------------------------------------------|#
+  #|==========================================================================|#
   (:method ((spy spy))
     (unless (spy-active-p spy)
       (setf (spy-requests-list spy) nil
             (spy-active-p spy) t))))
 
 (defgeneric finish-spy (spy)
-  #|--------------------------------------------------------------------------|#
+  #|==========================================================================|#
   (:method ((spy spy))
     (when (spy-active-p spy)
       (setf (spy-requests-list spy)
@@ -42,15 +42,10 @@
       (setf (spy-active-p spy) nil))))
 
 (defgeneric generate-request-id (spy)
-  #|--------------------------------------------------------------------------|#
+  #|==========================================================================|#
   (:method ((spy spy))
     (case (spy-genid-style spy)
-      (:uuid1
-       (format nil "~A" (uuid:make-v1-uuid)))
-      (:uuid4
-       (format nil "~A" (uuid:make-v4-uuid)))
-      (:order
-       (format nil "~6,'0d" (* (length (spy-requests-list spy)) 100))))))
+      (format nil "~A" (uuid:make-v4-uuid)))))
 
 
 (defgeneric make-post-file-name (spy name type)
@@ -62,7 +57,7 @@
 
 
 (defgeneric register-record (spy request reply content)
-  #|--------------------------------------------------------------------------|#
+  #|==========================================================================|#
   (:method :around (spy request reply content)
     (when (spy-active-p spy)
       (call-next-method)))

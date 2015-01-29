@@ -18,11 +18,11 @@
 
 (load (merge-pathnames #P"webapp.lisp" *example-directory*))
 
-(defparameter *requests-pathname*
-  (merge-pathnames #P"data/webapp.json" *example-directory*))
+(defparameter *simulator-config*
+  (merge-pathnames #P"config/webapp.json" *example-directory*))
 
 (defparameter *replies-pathname*
-  (merge-pathnames #P"data/data/" *example-directory*))
+  (merge-pathnames #P"config/data/" *example-directory*))
 
 (defun reply-pathname (id basepath)
   (make-pathname :name id
@@ -37,8 +37,8 @@
   ((replies-source :initform nil :initarg :replies-source)))
 
 (defmethod shared-initialize :after ((simulator fionbio-simulator) slot-names &key &allow-other-keys)
-  (unless (slot-value simulator 'replies-source)
-    (error "replies-source is required")))
+  (setf (slot-value simulator 'replies-source)
+        (merge-pathnames #P"data/" (restman.simulator:simulator-config simulator))))
 
 (defmethod restman.simulator:find-correct-reply ((simulator fionbio-simulator) request-id)
   (let ((path (reply-pathname request-id
@@ -46,20 +46,28 @@
     (if (fad:file-exists-p path)
         (yason:parse path))))
 
-(defmethod restman.simulator:fixate ((simulator fionbio-simulator) pathname)
+(defmethod restman.simulator:fixate ((simulator fionbio-simulator))
   #|--------------------------------------------------------------------------|#
-  (ensure-directories-exist pathname)
+  (iter (for child in (restman.simulator:simulator-children simulator))
+        (restman.simulator:fixate child))
   #|--------------------------------------------------------------------------|#
-  (iter (for (id reply) in-hashtable (restman.simulator:simulator-last-replies simulator))
-        (restman.utility:encode-to-file reply
-                                        (reply-pathname id pathname)))
+  (let ((pathname (slot-value simulator 'replies-source)))
+    #|------------------------------------------------------------------------|#
+    (ensure-directories-exist pathname)
+    #|------------------------------------------------------------------------|#
+    (iter (for (id reply) in-hashtable (restman.simulator:simulator-last-replies simulator))
+          (restman.utility:encode-to-file reply
+                                          (reply-pathname id pathname))))
   #|--------------------------------------------------------------------------|#
   (values))
 
+(defmethod restman.simulator:make-child-simulator ((simulator fionbio-simulator) config)
+  (make-instance 'fionbio-simulator
+                 :config config))
+
 (defparameter *simulator*
   (make-instance 'fionbio-simulator
-                 :requests-source *requests-pathname*
-                 :replies-source *replies-pathname*))
+                 :config *simulator-config*))
 
 (defun run (&optional env)
   (restman.simulator:run *simulator*
@@ -67,10 +75,10 @@
                          :environment (if env (restman.simulator:read-environment env))))
 
 (defun recompare ()
-  (restman.simulator:print-run-results *simulator*))
+  (restman.simulator:format-last-results *simulator* *standard-output*))
 
 (defun fixate ()
-  (restman.simulator:fixate *simulator* *replies-pathname*))
+  (restman.simulator:fixate *simulator*))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; tests
@@ -133,7 +141,7 @@
 (restas:define-route ~spy/finish ("~/finish")
   (restman.spy:finish-spy *spy*)
   (restman.spy:export-spy-journal *spy*
-                                  *requests-pathname*
+                                  *simulator-config*
                                   :replies-pathname *replies-pathname*)
   (restas:redirect '~spy))
 
