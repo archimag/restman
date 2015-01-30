@@ -105,4 +105,42 @@
   #+sbcl (sb-ext:parse-native-namestring thing)
   #-sbcl (parse-namestring thing))
 
+(defun re-format-json (obj stream)
+  (labels ((wrap (o)
+             (typecase o
+               (hash-table
+                (let ((ht (make-hash-table :test (hash-table-test o))))
+                  (iter (for key in (sort (hash-table-keys o) #'string<))
+                        (setf (gethash key ht)
+                              (wrap (gethash key o))))
+                  ht))
+               (list (mapcar #'wrap o))
+               (t o))))
+    #|------------------------------------------------------------------------|#
+    (yason:encode (wrap obj)
+                  (yason:make-json-output-stream stream :indent t))))
 
+(defun re-format-xml (obj stream)
+  (labels ((sort-attrs (el)
+             (let (attrs)
+               #|-------------------------------------------------------------|#
+               (iter (for attr in (xtree:all-attribute-nodes el))
+                     (for name = (xtree:local-name attr))
+                     (for ns = (xtree:namespace-uri attr))
+                     (push (list name
+                                 ns
+                                 (xtree:text-content attr))
+                           attrs)
+                     (xtree:remove-attribute el name ns))
+               #|-------------------------------------------------------------|#
+               (iter (for (name ns value) in (sort attrs #'string< :key #'first))
+                     (setf (xtree:attribute-value el name ns)
+                           value))
+               #|-------------------------------------------------------------|#
+               (iter (for child in (xtree:all-childs el))
+                     (when (xtree:element-p child)
+                       (sort-attrs child))))))
+    #|------------------------------------------------------------------------|#
+    (sort-attrs obj)
+    #|------------------------------------------------------------------------|#
+    (xtree:serialize obj stream :pretty-print t)))

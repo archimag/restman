@@ -9,7 +9,9 @@
            #:encode-to-file
            #:string-to-symbol
            #:native-namestring
-           #:parse-native-namestring))
+           #:parse-native-namestring
+           #:re-format-json
+           #:re-format-xml))
 
 (defpackage #:restman.spy
   (:use #:cl #:alexandria #:iter #:blackbird #:restman.utility)

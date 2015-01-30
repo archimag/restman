@@ -43,18 +43,17 @@
 (defgeneric reformat-json-string (simulator json)
   #|--------------------------------------------------------------------------|#
   (:method ((simulator simulator) (json string))
-    (with-output-to-string(out)
-      (yason:encode (yason:parse json)
-                    (yason:make-json-output-stream out :indent t)))))
+    (with-output-to-string (stream)
+      (re-format-json (yason:parse json) stream))))
 
 (defgeneric reformat-html-string (simulator html)
   #|--------------------------------------------------------------------------|#
   (:method ((simulator simulator) (html string))
     (handler-bind ((warning #'muffle-warning))
-      (html:with-parse-html (doc (format nil "<div>~A</div>" html))
-        (xtree:serialize (xtree:first-child (xtree:first-child (xtree:root doc)))
-                         :to-string
-                         :pretty-print t)))))
+      (with-output-to-string (stream)
+        (html:with-parse-html (doc (format nil "<div>~A</div>" html))
+          (re-format-xml (xtree:first-child (xtree:first-child (xtree:root doc)))
+                         stream))))))
 
 (defgeneric format-string-diff (simulator a b)
   #|--------------------------------------------------------------------------|#
@@ -66,6 +65,12 @@
                         stream))))
 
 (defgeneric format-content-diff (simulator a b content-type)
+  #|--------------------------------------------------------------------------|#
+  (:method :around ((simulator simulator) (a string) (b string) content-type)
+    (handler-case
+        (call-next-method)
+      (t ()
+        (format-string-diff simulator a b))))
   #|--------------------------------------------------------------------------|#
   (:method ((simulator simulator) (a string) (b string) content-type)
     (cond
