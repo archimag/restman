@@ -1,0 +1,54 @@
+{
+  "requests":[
+    {
+      "url":"http://localhost:8080/",
+      "method":"GET",
+      "serverProtocol":"HTTP/1.1",
+      "remoteAddress":"127.0.0.1",
+      "remotePort":55750,
+      "headers":{
+        "Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Encoding":"gzip,deflate,sdch",
+        "Accept-Language":"en,en-US;q=0.8,ru;q=0.6",
+        "Connection":"keep-alive",
+        "Cookie":"b=Goodnight!; a=Hello world; message=123",
+        "Host":"localhost:8080",
+        "Referer":"http://localhost:8080/~/",
+        "User-Agent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/38.0.2125.101 Safari/537.36"
+      },
+      "data":{
+      },
+      "id":"000000"
+    },
+    {
+      "url":"http://localhost:8080/",
+      "method":"POST",
+      "serverProtocol":"HTTP/1.1",
+      "remoteAddress":"127.0.0.1",
+      "remotePort":55750,
+      "headers":{
+        "Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Encoding":"gzip,deflate",
+        "Accept-Language":"en,en-US;q=0.8,ru;q=0.6",
+        "Cache-Control":"max-age=0",
+        "Connection":"keep-alive",
+        "Content-Length":"920",
+        "Content-Type":"multipart/form-data; boundary=----WebKitFormBoundarycv9qVlHukgLYAsjV",
+        "Cookie":"b=Goodnight!; a=Hello world; message=NIL",
+        "Host":"localhost:8080",
+        "Origin":"http://localhost:8080",
+        "Referer":"http://localhost:8080/",
+        "User-Agent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/38.0.2125.101 Safari/537.36"
+      },
+      "data":{
+        "file":[
+          "/tmp/file.000100",
+          "test.py",
+          "text/x-python"
+        ],
+        "message":"123"
+      },
+      "id":"000100"
+    }
+  ]
+}

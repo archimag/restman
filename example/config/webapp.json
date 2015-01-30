@@ -1,0 +1,6 @@
+{
+    include: [
+        "test1/webapp.json",
+        "test2/webapp.json"
+    ]
+}
