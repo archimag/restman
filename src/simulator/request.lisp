@@ -81,7 +81,8 @@
                      :uri uri
                      :method (find-symbol ($ "method") '#:keyword)
                      :server-protocol ($ "serverProtocol")
-                     :headers-in (hash-table-alist ($ "headers"))
+                     :headers-in (if ($ "headers")
+                                     (hash-table-alist ($ "headers")))
                      :post-parameters (if ($ "data")
                                           (iter (for (key value) in-hashtable ($ "data"))
                                                 (collect
@@ -90,5 +91,6 @@
                                                               (cons (parse-native-namestring (car value))
                                                                     (cdr value))
                                                               value)))))
+                     :raw-post-data ($ "rawPostData")
                      :state (if ($ "state") (hash-table-alist ($ "state")))))))
 
